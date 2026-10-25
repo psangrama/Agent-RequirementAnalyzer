@@ -40,6 +40,8 @@ Rules that keep it safe:
 - **Re-running is safe.** Each issue carries a hidden marker and duplicate titles are skipped, so an interrupted `push` picks up where it stopped without creating duplicates.
 - **Everything is recorded.** `reqagent history` shows each analysis, rewrite, approval and push; `reqagent runs` shows which stage each run has reached (drafted, approved, pushed or failed).
 
+Want to see how it is built? Read the [code walkthrough](CODE_WALKTHROUGH.md): a tour of every module, the environment variables, and what changes if you swap the LLM provider.
+
 ## Setup (one time)
 
 1. Install Node.js 20 or newer.
@@ -260,3 +262,6 @@ To go back to an earlier version of the drafts, copy for example `history/issues
 - Very long documents: if Claude reports the backlog is too large, split the file by section and analyze each part.
 - Scanned PDFs (images of text) need OCR first. Run `reqagent parse` to check.
 - Requirement IDs like `FR-1` / `NFR-2` in your document make the links back to your requirements much more precise.
+
+## Contributing
+Feedback, suggestions and contributions are welcome. Start with the [code walkthrough](CODE_WALKTHROUGH.md) to find your way around, and run `npm test` (offline, no API calls) before sending a change.
