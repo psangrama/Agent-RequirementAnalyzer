@@ -1,0 +1,31 @@
+{
+  "name": "reqagent",
+  "version": "0.3.0",
+  "description": "Turns requirement files into GitHub issues after your approval",
+  "scripts": {
+    "test": "node test/run-offline.mjs"
+  },
+  "keywords": [],
+  "author": "Sangram Pattanayak",
+  "license": "ISC",
+  "type": "module",
+  "bin": {
+    "reqagent": "bin/reqagent.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.129.0",
+    "@inquirer/prompts": "^8.7.2",
+    "@octokit/rest": "^22.0.1",
+    "cli-table3": "^0.6.5",
+    "commander": "^15.0.0",
+    "dotenv": "^18.0.4",
+    "mammoth": "^1.13.0",
+    "pdf-parse": "^2.4.5",
+    "picocolors": "^1.1.1",
+    "turndown": "^7.2.4",
+    "zod": "^4.6.5"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

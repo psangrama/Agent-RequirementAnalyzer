@@ -1,0 +1,15 @@
+node_modules/
+.env
+.env.*
+!.env.example
+drafts/
+*.log
+.DS_Store
+
+# memory / hand-off files
+Claude-Memory-Transfer.md
+*Memory*.md
+
+# local output folders
+Claude outputs/
+linkedin/
