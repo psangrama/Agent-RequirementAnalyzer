@@ -3,14 +3,18 @@
   "version": "0.3.0",
   "description": "Turns requirement files into GitHub issues after your approval",
   "scripts": {
-    "test": "node test/run-offline.mjs"
+    "test": "node test/run-offline.mjs",
+    "test:browser": "node test/web-browser.mjs",
+    "web": "node web/server.js"
   },
   "keywords": [],
   "author": "Sangram Pattanayak",
   "license": "ISC",
   "type": "module",
   "bin": {
-    "reqagent": "bin/reqagent.js"
+    "reqagent": "bin/reqagent.js",
+    "reqagent-conduct": "bin/conduct.js",
+    "reqagent-revise": "bin/revise.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.129.0",

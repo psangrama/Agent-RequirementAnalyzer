@@ -17,7 +17,7 @@ Rules:
 - IDs: epics E1, E2…; stories E1.S1, E1.S2…; tasks E1.S1.T1…
 - Acceptance criteria must be specific and testable (Given/When/Then or checklist style). Epics may summarise their outcome instead.
 - source_refs must point back to the document: use its requirement IDs (e.g. FR-3, NFR-2) when it has them, otherwise the section heading.
-- priority: use what the document says (must/should/could, P0/P1…); otherwise judge by dependency and user impact.
+- priority: use what the document says (must/should/could, P0/P1…); otherwise judge by dependency and user impact. Spread the priorities: "high" is only for work that blocks other work or the core user journey (roughly a third of items at most), "medium" is the normal case, "low" is for polish, nice-to-haves and anything the document marks optional. Do not mark everything high.
 - estimate: t-shirt size of effort (XS < 2h, S ≈ half day, M ≈ 1-2 days, L ≈ 3-5 days, XL > 1 week; epics are usually L/XL).
 - labels: only domain labels (frontend, backend, api, database, security, infra, devops, docs, testing, ux, integration…), lowercase, 1-3 per item.
 - flags: list anything vague ("fast", "user-friendly"), untestable, missing (no error handling, no roles defined…) or conflicting, with a concrete clarifying question.

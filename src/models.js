@@ -4,7 +4,7 @@ import pc from 'picocolors';
 export const DEFAULT_MODEL = 'claude-haiku-4-5-20251001';
 
 // Used when the live list can't be fetched (offline, restricted key…). Newest first.
-const KNOWN_MODELS = [
+export const KNOWN_MODELS = [
   { id: 'claude-fable-5-1', display_name: 'Claude Fable 5.1', note: 'deepest reasoning; slowest and most expensive' },
   { id: 'claude-opus-5-5', display_name: 'Claude Opus 5.5', note: 'very strong on long, complex PRDs' },
   { id: 'claude-sonnet-5-5', display_name: 'Claude Sonnet 5.5', note: 'best balance of quality, speed and cost' },

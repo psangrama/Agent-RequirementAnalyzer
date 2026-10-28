@@ -81,3 +81,17 @@ export async function exists(dir, file) {
 export function fingerprint(items) {
   return crypto.createHash('sha256').update(JSON.stringify(items)).digest('hex');
 }
+
+/** "2026-10-28-14-03-55_payments-prd" → "Payments Prd" unless meta carries a name the user chose. */
+export function friendlyTitle(meta, runName) {
+  if (meta?.title) return meta.title;
+  const base = (meta?.sourceName || runName.replace(/^\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}_/, '')).replace(/\.[a-z0-9]+$/i, '');
+  const words = base.replace(/[-_.]+/g, ' ').trim();
+  return words ? words.replace(/\b\w/g, (c) => c.toUpperCase()) : runName;
+}
+
+export function runDate(meta, runName) {
+  if (meta?.createdAt) return meta.createdAt;
+  const m = /^(\d{4})-(\d{2})-(\d{2})-(\d{2})-(\d{2})-(\d{2})_/.exec(runName);
+  return m ? `${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6]}` : null;
+}

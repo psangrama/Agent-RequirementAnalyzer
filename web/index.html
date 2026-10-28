@@ -1,0 +1,985 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ReqAgent: requirements to GitHub issues</title>
+<style>
+  :root {
+    --bg: #f4f5f8; --card: #fff; --text: #1d2330; --muted: #5d6677; --line: #dfe3ea;
+    --accent: #2457d6; --accent-text: #fff; --ok: #1a7f37; --warn: #9a6700; --err: #c62828;
+    --code: #0f1623; --code-text: #d8e1f0; --nav: #151b2b; --nav-text: #c9d2e4;
+    --add: #e6f6ea; --del: #fdecea; --shadow: 0 8px 30px rgba(15, 22, 35, .25);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #0e121a; --card: #171d29; --text: #e6eaf2; --muted: #98a2b5; --line: #2a3345; --accent: #6b93ff; --accent-text: #0b1020; --ok: #4cc26b; --warn: #e0b341; --err: #ff7b72; --nav: #0a0d14; --add: #12301c; --del: #3a1a1a; }
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; display: flex; flex-direction: column; }
+  [hidden] { display: none !important; }
+
+  /* top navigation */
+  header { background: var(--nav); color: var(--nav-text); display: flex; align-items: center; gap: 20px; padding: 0 16px; flex-wrap: wrap; }
+  .brand { font-weight: 700; color: #fff; padding: 12px 0; letter-spacing: .02em; }
+  nav { display: flex; gap: 2px; flex: 1; flex-wrap: wrap; }
+  nav button { background: none; border: 0; border-bottom: 3px solid transparent; border-radius: 0; color: var(--nav-text); padding: 14px 14px 11px; font-weight: 600; cursor: pointer; font-size: .95rem; }
+  nav button:hover { color: #fff; }
+  nav button.active { color: #fff; border-bottom-color: var(--accent); }
+  .repo { display: flex; align-items: center; gap: 8px; font-size: .85rem; padding: 8px 0; }
+  .repo input { width: 200px; padding: 5px 8px; border-radius: 6px; border: 1px solid #38425a; background: #0d1220; color: #fff; font: inherit; }
+
+  /* body: main panel + collapsible command panel */
+  .layout { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) minmax(320px, 420px); gap: 16px; padding: 16px; min-height: 0; transition: grid-template-columns .15s; }
+  .layout.tl-collapsed { grid-template-columns: minmax(0, 1fr) 46px; }
+  @media (max-width: 900px) { .layout, .layout.tl-collapsed { grid-template-columns: 1fr; } .timeline { max-height: 60vh; } .timeline.collapsed { max-height: none; } }
+  .main, .timeline { background: var(--card); border: 1px solid var(--line); border-radius: 10px; min-height: 0; overflow: auto; }
+  .main { padding: 20px; position: relative; }
+  .timeline { display: flex; flex-direction: column; }
+  .timeline > h2 { margin: 0; padding: 12px 14px; border-bottom: 1px solid var(--line); font-size: .85rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .timeline > h2 button { background: none; border: 1px solid var(--line); color: var(--muted); border-radius: 6px; cursor: pointer; font: inherit; padding: 0 8px; }
+  .timeline.collapsed > h2 { flex-direction: column; border-bottom: 0; padding: 10px 6px; height: 100%; justify-content: flex-start; }
+  .timeline.collapsed .ttl { writing-mode: vertical-rl; margin-top: 8px; }
+  .timeline.collapsed #tl { display: none; }
+  #tl { overflow: auto; padding: 8px 12px 16px; flex: 1; }
+  .empty { color: var(--muted); padding: 24px 8px; text-align: center; font-size: .9rem; }
+
+  h1 { font-size: 1.25rem; margin: 0 0 4px; } h2.sec { font-size: 1rem; margin: 22px 0 8px; }
+  .sub, .hint { color: var(--muted); font-size: .88rem; margin: 2px 0 12px; }
+  label { display: block; font-weight: 600; margin: 12px 0 4px; font-size: .85rem; }
+  label.inline { font-weight: 400; display: flex; gap: 6px; align-items: center; margin: 8px 0; }
+  input[type=text], select, textarea { width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--text); font: inherit; }
+  textarea { resize: vertical; min-height: 70px; }
+  button.btn { font: inherit; font-weight: 600; padding: 8px 14px; border-radius: 6px; border: 1px solid var(--accent); background: var(--accent); color: var(--accent-text); cursor: pointer; }
+  button.btn.secondary { background: transparent; color: var(--accent); }
+  button.btn.danger { background: var(--err); border-color: var(--err); color: #fff; }
+  button.btn.small { padding: 2px 9px; font-size: .78rem; }
+  button.btn:disabled { opacity: .45; cursor: not-allowed; }
+  button.link { background: none; border: 0; color: var(--accent); cursor: pointer; font: inherit; padding: 0; text-decoration: underline; }
+  .row { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; align-items: center; }
+  .drop { border: 2px dashed var(--line); border-radius: 10px; padding: 30px; text-align: center; color: var(--muted); cursor: pointer; }
+  .drop.over, .drop:focus-visible { border-color: var(--accent); color: var(--text); outline: none; }
+  .drop strong { color: var(--text); }
+  .banner { padding: 9px 12px; border-radius: 6px; border: 1px solid var(--warn); color: var(--warn); margin: 0 0 14px; font-size: .88rem; }
+  .err { color: var(--err); } .okc { color: var(--ok); }
+  .mono { font-family: ui-monospace, Consolas, monospace; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: .88rem; }
+  th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: .78rem; white-space: nowrap; }
+  td.state { text-align: center; color: var(--muted); padding: 22px 8px; }
+  tr.next td { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+  .badge { font-size: .72rem; font-weight: 700; padding: 1px 8px; border-radius: 99px; border: 1px solid currentColor; white-space: nowrap; display: inline-block; }
+  .badge.running, .badge.drafted, .badge.approved, .badge.modified { color: var(--accent); }
+  .badge.done, .badge.pushed, .badge.completed { color: var(--ok); }
+  .badge.failed, .badge.blocked, .badge.dropped { color: var(--err); }
+  .badge.stopped, .badge.pending, .badge.idle { color: var(--muted); } .badge.in-flight, .badge.unsaved { color: var(--warn); }
+  .lab { font: .7rem ui-monospace, Consolas, monospace; border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; margin-right: 4px; white-space: nowrap; }
+  .spin { display: inline-block; width: 12px; height: 12px; border: 2px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; vertical-align: -2px; margin-right: 6px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .spin, .prog.indet i { animation: none !important; } }
+
+  /* runs: collapsible list + full-width detail */
+  .runs { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 18px; align-items: start; }
+  .runs.list-collapsed { grid-template-columns: 38px minmax(0, 1fr); }
+  @media (max-width: 800px) { .runs, .runs.list-collapsed { grid-template-columns: 1fr; } }
+  .runlist { border: 1px solid var(--line); border-radius: 8px; background: var(--bg); position: sticky; top: 0; max-height: calc(100vh - 150px); overflow: auto; }
+  .runlist .head { display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; font-weight: 700; font-size: .8rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+  .runlist .head button { background: none; border: 1px solid var(--line); color: var(--muted); border-radius: 6px; cursor: pointer; }
+  .runs.list-collapsed .runlist .items { display: none; }
+  .runs.list-collapsed .runlist .head { flex-direction: column; gap: 8px; padding: 8px 4px; }
+  .runs.list-collapsed .runlist .head span { writing-mode: vertical-rl; }
+  .repo label { white-space: nowrap; }
+  details.clar > summary { cursor: pointer; list-style: none; font-weight: 700; font-size: .95rem; }
+  details.clar > summary::-webkit-details-marker { display: none; }
+  details.clar > summary::before { content: '▸ '; } details.clar[open] > summary::before { content: '▾ '; }
+  .runitem { padding: 8px 10px; border-top: 1px solid var(--line); cursor: pointer; }
+  .runitem:hover { background: color-mix(in srgb, var(--accent) 7%, transparent); }
+  .runitem.sel { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+  .runitem .t { font-weight: 600; font-size: .88rem; word-break: break-word; }
+  .runitem .m { font-size: .74rem; color: var(--muted); display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-top: 2px; }
+  .runhead { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .runhead h2 { margin: 0; font-size: 1.15rem; }
+  .runhead input { max-width: 380px; }
+  .runmeta { color: var(--muted); font-size: .8rem; margin: 2px 0 0; }
+  .stepper { display: flex; gap: 6px; margin: 12px 0 4px; flex-wrap: wrap; }
+  .stepper span { font-size: .8rem; padding: 3px 11px; border-radius: 99px; border: 1px solid var(--line); color: var(--muted); }
+  .stepper span.on { border-color: var(--accent); color: var(--text); font-weight: 600; }
+  .stepper span.ok { color: var(--ok); border-color: var(--ok); }
+
+  /* clarifications */
+  .clar { border: 1px solid var(--warn); border-left-width: 4px; border-radius: 8px; padding: 12px 14px; margin: 14px 0; }
+  .clar h3 { margin: 0 0 2px; font-size: .95rem; }
+  .q { padding: 10px 0; border-top: 1px solid var(--line); }
+  .q:first-of-type { border-top: 0; }
+  .q .ref { font: .72rem ui-monospace, Consolas, monospace; border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; margin-right: 6px; }
+  .q .ask { font-weight: 600; margin: 4px 0 6px; font-size: .88rem; }
+  .q .why { color: var(--muted); font-size: .82rem; }
+  .q .ans { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-top: 6px; }
+  .q .ans input { flex: 1; min-width: 180px; }
+  .q.answered { opacity: .95; }
+  .q.answered .ref { border-color: var(--ok); color: var(--ok); }
+
+  /* issue table */
+  .toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 8px 0; font-size: .85rem; }
+  .toolbar select { width: auto; padding: 3px 6px; }
+  .mix { display: flex; height: 8px; border-radius: 99px; overflow: hidden; width: 160px; border: 1px solid var(--line); }
+  .mix i { display: block; } .mix .h { background: var(--err); } .mix .m { background: var(--warn); } .mix .l { background: var(--ok); }
+  .bulk { background: color-mix(in srgb, var(--accent) 9%, transparent); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; }
+  table.issues { table-layout: fixed; }
+  table.issues th.c-cb { width: 30px; } table.issues th.c-n { width: 34px; } table.issues th.c-id { width: 74px; }
+  table.issues th.c-pri { width: 98px; } table.issues th.c-est { width: 70px; } table.issues th.c-gh { width: 96px; } table.issues th.c-act { width: 64px; }
+  table.issues td { vertical-align: middle; }
+  table.issues td select { width: 100%; padding: 2px 4px; font-size: .82rem; }
+  table.issues .n, table.issues .id { font: .76rem ui-monospace, Consolas, monospace; color: var(--muted); }
+  table.issues tr.epic td { font-weight: 600; background: color-mix(in srgb, var(--accent) 5%, transparent); }
+  table.issues tr.story .tt { padding-left: 18px; } table.issues tr.task .tt { padding-left: 40px; color: var(--muted); font-size: .85rem; }
+  table.issues tr.dim { opacity: .55; }
+  table.issues .tt { overflow-wrap: anywhere; }
+  .tog { background: none; border: 0; cursor: pointer; color: var(--muted); padding: 0 4px 0 0; font-size: .8rem; }
+  .hl-high { color: var(--err); } .hl-medium { color: var(--warn); } .hl-low { color: var(--ok); }
+
+  /* sticky action footer */
+  .foot { position: sticky; bottom: -20px; margin: 22px -20px -20px; padding: 10px 20px; background: var(--card); border-top: 1px solid var(--line); box-shadow: 0 -6px 14px rgba(15, 22, 35, .08); display: flex; gap: 10px; align-items: center; flex-wrap: wrap; z-index: 5; }
+  .foot .grow { flex: 1; min-width: 160px; font-size: .86rem; color: var(--muted); }
+  .foot .grow b { color: var(--text); }
+  .foot .pending { flex-basis: 100%; display: flex; gap: 8px; align-items: center; font-size: .85rem; color: var(--warn); }
+
+  /* modal + drawer */
+  .overlay { position: fixed; inset: 0; background: rgba(8, 12, 20, .55); z-index: 50; display: flex; align-items: center; justify-content: center; padding: 16px; }
+  .modal { background: var(--card); border: 1px solid var(--line); border-radius: 12px; width: min(640px, 100%); max-height: 90vh; overflow: auto; box-shadow: var(--shadow); padding: 20px; }
+  .modal h2 { margin: 0 0 6px; font-size: 1.1rem; }
+  .overlay.drawer-wrap { justify-content: flex-end; align-items: stretch; padding: 0; }
+  .drawer { background: var(--card); border-left: 1px solid var(--line); width: min(600px, 100%); height: 100%; overflow: auto; box-shadow: var(--shadow); display: flex; flex-direction: column; }
+  .drawer .dh { padding: 14px 18px 0; } .drawer .db { padding: 6px 18px 18px; flex: 1; overflow: auto; }
+  .drawer .df { position: sticky; bottom: 0; background: var(--card); border-top: 1px solid var(--line); padding: 10px 18px; display: flex; gap: 8px; align-items: center; }
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-top: 8px; }
+  .tabs button { background: none; border: 0; border-bottom: 2px solid transparent; padding: 6px 12px; cursor: pointer; font: inherit; color: var(--muted); font-weight: 600; }
+  .tabs button.on { color: var(--text); border-bottom-color: var(--accent); }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .diff { border: 1px solid var(--line); border-radius: 6px; margin: 6px 0 12px; font: .8rem/1.45 ui-monospace, Consolas, monospace; overflow: hidden; }
+  .diff div { padding: 1px 8px; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .diff .add { background: var(--add); } .diff .del { background: var(--del); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--err) 50%, transparent); }
+  .steps { list-style: none; padding: 0; margin: 12px 0; }
+  .steps li { padding: 6px 0; display: flex; gap: 8px; align-items: center; }
+  .steps .dot { width: 20px; height: 20px; border-radius: 50%; border: 1px solid var(--line); display: inline-flex; align-items: center; justify-content: center; font-size: .72rem; color: var(--muted); }
+  .steps li.done .dot { background: var(--ok); border-color: var(--ok); color: #fff; }
+  .steps li.now .dot { border-color: var(--accent); color: var(--accent); }
+  dl.facts { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; margin: 10px 0; font-size: .9rem; }
+  dl.facts dt { color: var(--muted); } dl.facts dd { margin: 0; font-weight: 600; word-break: break-all; }
+
+  /* model picker */
+  .models { display: grid; gap: 8px; margin: 6px 0; }
+  .mcard { display: grid; grid-template-columns: 22px 1fr auto; gap: 4px 8px; align-items: start; border: 1px solid var(--line); border-radius: 8px; padding: 9px 11px; cursor: pointer; margin: 0; font-weight: 400; background: var(--bg); }
+  .mcard:has(input:checked) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 9%, transparent); }
+  .mcard .nm { font-weight: 700; } .mcard .why { color: var(--muted); font-size: .8rem; grid-column: 2; }
+  .mcard .est { text-align: right; font-size: .8rem; white-space: nowrap; } .mcard .est small { display: block; color: var(--muted); }
+  .tag { font-size: .66rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--accent-text); background: var(--accent); border-radius: 4px; padding: 1px 6px; margin-left: 6px; }
+
+  /* command timeline */
+  .step { border: 1px solid var(--line); border-radius: 8px; margin: 8px 0; background: var(--bg); }
+  .step.running { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent); }
+  .step summary { list-style: none; cursor: pointer; padding: 8px 10px; display: grid; grid-template-columns: 24px 1fr auto; gap: 8px; align-items: start; }
+  .step summary::-webkit-details-marker { display: none; }
+  .step .seq { font: .75rem ui-monospace, Consolas, monospace; color: var(--muted); padding-top: 2px; }
+  .step .cmd { font: .8rem/1.35 ui-monospace, Consolas, monospace; word-break: break-all; }
+  .step .when { grid-column: 2 / 4; font-size: .74rem; color: var(--muted); }
+  .step .prog { margin: 0 10px 8px; }
+  .prog { height: 6px; border-radius: 99px; background: var(--line); overflow: hidden; position: relative; }
+  .prog i { display: block; height: 100%; background: var(--accent); width: 0; transition: width .3s; }
+  .prog.indet i { width: 35%; position: absolute; animation: slide 1.2s ease-in-out infinite; }
+  @keyframes slide { 0% { left: -35%; } 100% { left: 100%; } }
+  .step .now { margin: 0 10px 8px; font-size: .78rem; color: var(--muted); overflow-wrap: anywhere; }
+  .step pre { margin: 0; padding: 10px; background: var(--code); color: var(--code-text); font: .75rem/1.4 ui-monospace, Consolas, monospace; white-space: pre-wrap; max-height: 260px; overflow: auto; }
+  .step .next { padding: 8px 10px; display: flex; gap: 6px; flex-wrap: wrap; border-top: 1px solid var(--line); }
+  .results a { color: var(--accent); }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">ReqAgent</div>
+  <nav id="nav">
+    <button data-view="new" class="active">New run</button>
+    <button data-view="runs">Runs</button>
+    <button data-view="conductor">Conductor</button>
+    <button data-view="history">History</button>
+  </nav>
+  <div class="repo"><label for="repo" style="margin:0;font-weight:400">GitHub repo</label><input type="text" id="repo" placeholder="owner/name"></div>
+</header>
+
+<div class="layout" id="layout">
+  <main class="main" id="main"></main>
+  <aside class="timeline" id="timeline" aria-live="polite">
+    <h2><span class="ttl">Commands</span><span id="tlState" class="badge idle">idle</span><button id="tlToggle" title="Hide or show the command panel" aria-label="Hide or show the command panel">⇥</button></h2>
+    <div id="tl"><div class="empty">Nothing has run yet. Each command you start appears here, in order, with its output.</div></div>
+  </aside>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const el = (tag, text, cls) => { const e = document.createElement(tag); if (text != null) e.textContent = text; if (cls) e.className = cls; return e; };
+/** h('div', {class:'x', on:{click:fn}}, child, ...) */
+const h = (tag, props = {}, ...kids) => {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(props || {})) {
+    if (v == null || v === false) continue;
+    if (k === 'class') e.className = v;
+    else if (k === 'on') Object.entries(v).forEach(([ev, fn]) => e.addEventListener(ev, fn));
+    else if (k in e) e[k] = v;
+    else e.setAttribute(k, v);
+  }
+  e.append(...kids.flat().filter((x) => x != null && x !== false));
+  return e;
+};
+const badge = (status, text) => el('span', text || status, 'badge ' + status);
+const repoRe = /^[\w.-]+\/[\w.-]+$/;
+const store = { get: (k) => { try { return localStorage.getItem(k) || ''; } catch { return ''; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch {} } };
+const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+
+async function api(path, opts = {}) {
+  const res = await fetch(path, { ...opts, headers: { 'x-reqagent-ui': '1', ...(opts.headers || {}) } });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || res.statusText);
+  return data;
+}
+const post = (path, body) => api(path, { method: 'POST', body: JSON.stringify(body || {}) });
+const repo = () => $('repo').value.trim();
+const msg = (box, text, cls = 'err') => box.replaceChildren(el('div', text, 'hint ' + cls));
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+async function waitJob(id) { for (;;) { const j = await api('/api/jobs/' + id); if (j.status !== 'running') return j; await sleep(600); } }
+
+let view = 'new', file = null, run = null, detail = null, config = {};
+
+// ---------------- table states (loading / empty / error) ----------------
+const stateRow = (cols, content) => h('tr', {}, h('td', { colSpan: cols, class: 'state' }, content));
+const loadingRow = (cols, text = 'Loading…') => stateRow(cols, [h('span', { class: 'spin' }), text]);
+const emptyRow = (cols, text) => stateRow(cols, text);
+const errorRow = (cols, text) => stateRow(cols, h('span', { class: 'err' }, text));
+
+// ---------------- dialogs ----------------
+let closeTop = null;
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && closeTop) closeTop(); });
+/** Opens a centred dialog (or a side drawer). `build(ctx)` fills it; returns { close, el }. */
+function openDialog({ title, drawer = false, build, onClose }) {
+  const prevFocus = document.activeElement;
+  const body = h('div');
+  const root = drawer
+    ? h('div', { class: 'overlay drawer-wrap' }, h('div', { class: 'drawer', role: 'dialog', 'aria-modal': 'true', 'aria-label': title }, body))
+    : h('div', { class: 'overlay' }, h('div', { class: 'modal', role: 'dialog', 'aria-modal': 'true', 'aria-label': title }, body));
+  const ctx = { body, close: null, root };
+  const previousTop = closeTop;
+  ctx.close = (force) => {
+    if (!force && onClose && onClose() === false) return;
+    root.remove(); closeTop = previousTop; prevFocus?.focus?.();
+  };
+  closeTop = () => ctx.close(false);
+  root.addEventListener('mousedown', (e) => { if (e.target === root) ctx.close(false); });
+  build(ctx);
+  document.body.append(root);
+  (root.querySelector('[autofocus]') || root.querySelector('button, input, textarea, select'))?.focus();
+  return ctx;
+}
+/** Promise-based confirmation. `lines` are strings or nodes shown above the buttons. */
+function confirmDialog({ title, lines = [], confirmText = 'Confirm', danger = false, ack = null }) {
+  return new Promise((resolve) => {
+    openDialog({
+      title,
+      onClose: () => { resolve(false); },
+      build: (d) => {
+        const ok = h('button', { class: 'btn' + (danger ? ' danger' : ''), disabled: Boolean(ack), autofocus: true, on: { click: () => { resolve(true); d.close(true); } } }, confirmText);
+        const cancel = h('button', { class: 'btn secondary', on: { click: () => d.close(false) } }, 'Cancel');
+        const box = ack ? h('label', { class: 'inline' }, h('input', { type: 'checkbox', on: { change: (e) => (ok.disabled = !e.target.checked) } }), ack) : null;
+        d.body.append(h('h2', {}, title), ...lines.map((l) => (typeof l === 'string' ? h('p', { class: 'sub' }, l) : l)), box, h('div', { class: 'row' }, ok, cancel));
+      },
+    });
+  });
+}
+
+// ---------------- model picker (recommended models with rough cost/time) ----------------
+let modelCache = null;
+async function loadModels() {
+  if (!modelCache) { try { modelCache = await api('/api/models'); } catch { modelCache = { models: [], live: false, default: '', recommended: [] }; } }
+  return modelCache;
+}
+const money = (x) => (x < 0.01 ? '<$0.01' : x < 1 ? '$' + x.toFixed(2) : '$' + x.toFixed(x < 10 ? 1 : 0));
+const span = (a, b) => (a >= 60 ? `${Math.round(a / 60)}–${Math.round(b / 60)} min` : b >= 60 ? `${a}s–${Math.round(b / 60)} min` : `${a}–${b}s`);
+/**
+ * Pins the recommended models as cards and tucks the rest behind a menu.
+ * If `size` is given ({bytes, ext}) each card shows a rough cost/time for that document.
+ */
+function modelPicker({ defaultTitle, defaultSub }) {
+  const root = h('div'), cards = h('div', { class: 'models' }), more = h('select', { 'aria-label': 'More models' });
+  const name = 'model-' + Math.random().toString(36).slice(2);
+  const radios = [];
+  let estimates = {};
+  const fmtEst = (r, perM) => (estimates[r.id]
+    ? [h('b', {}, `${money(estimates[r.id].costLow)}–${money(estimates[r.id].costHigh)}`), h('small', {}, `~${span(estimates[r.id].secsLow, estimates[r.id].secsHigh)}`)]
+    : [h('b', {}, perM), h('small', {}, r.speed)]);
+  const card = (value, title, why, est, tag) => {
+    const input = h('input', { type: 'radio', name, value, checked: value === '', on: { change: () => (more.value = '') } });
+    radios.push(input);
+    return h('label', { class: 'mcard' }, input, h('span', {}, h('span', { class: 'nm' }, title), tag ? h('span', { class: 'tag' }, tag) : null), h('span', { class: 'est' }, est), h('span', { class: 'why' }, why));
+  };
+  let m = null;
+  const render = () => {
+    cards.replaceChildren(); radios.length = 0;
+    const def = (m.recommended || []).find((r) => r.id === m.default); // show what the default would cost, when we know it
+    cards.append(card('', defaultTitle(m), defaultSub, def ? fmtEst(def, `$${def.inUsd}/$${def.outUsd} per 1M`) : [h('small', {}, 'from .env')]));
+    (m.recommended || []).forEach((r, i) => cards.append(card(r.id, r.name, `${r.pick}. ${r.speed} · $${r.inUsd} / $${r.outUsd} per 1M tokens in/out`, fmtEst(r, `$${r.inUsd}/$${r.outUsd} per 1M`), i === 0 ? 'Recommended' : '')));
+  };
+  loadModels().then((x) => {
+    m = x; render();
+    more.replaceChildren(h('option', { value: '' }, `More models (${m.models.length || 'built-in shortcuts'})…`));
+    const rec = new Set((m.recommended || []).map((r) => r.id));
+    const list = m.models.length ? m.models.filter((x) => !rec.has(x.id)) : ['sonnet', 'opus', 'haiku', 'fable'].map((id) => ({ id, display_name: id[0].toUpperCase() + id.slice(1) }));
+    list.forEach((x) => more.append(h('option', { value: x.id }, `${x.display_name || x.id} (${x.id})${x.note ? ' - ' + x.note : ''}`)));
+    more.hidden = !list.length;
+    more.onchange = () => { if (more.value) radios.forEach((r) => (r.checked = false)); };
+    more.title = m.live ? 'Models available to your API key' : 'Could not fetch the live list; showing built-in choices';
+  });
+  root.append(cards, more);
+  return {
+    node: root,
+    value: () => more.value || radios.find((r) => r.checked)?.value || '',
+    async estimate(f) {
+      if (!f) { estimates = {}; if (m) render(); return; }
+      try {
+        const ext = '.' + f.name.split('.').pop().toLowerCase();
+        const { estimates: list } = await api(`/api/estimate?bytes=${f.size}&ext=${encodeURIComponent(ext)}`);
+        estimates = Object.fromEntries(list.map((x) => [x.id, x]));
+        await loadModels(); if (m) { const keep = this.value(); render(); radios.forEach((r) => (r.checked = r.value === keep)); }
+      } catch { /* the cards just keep showing prices */ }
+    },
+  };
+}
+
+// ---------------- navigation ----------------
+document.querySelectorAll('#nav button').forEach((b) => (b.onclick = () => show(b.dataset.view)));
+function show(v, opts = {}) {
+  view = v;
+  document.querySelectorAll('#nav button').forEach((b) => b.classList.toggle('active', b.dataset.view === v));
+  const hash = v === 'runs' && run ? `#runs/${encodeURIComponent(run)}` : '#' + v;
+  if (location.hash !== hash) history.replaceState(null, '', hash);
+  return ({ new: viewNew, runs: viewRuns, conductor: viewConductor, history: viewHistory })[v](opts);
+}
+$('repo').oninput = () => store.set('repo', repo());
+
+function banner() {
+  const missing = [!config.hasAnthropicKey && 'ANTHROPIC_API_KEY', !config.hasGithubToken && 'GITHUB_TOKEN'].filter(Boolean);
+  return missing.length ? el('div', `Missing in .env on the server: ${missing.join(', ')}. Add them and restart the server.`, 'banner') : null;
+}
+
+// ---------------- view: new run ----------------
+function viewNew() {
+  const m = $('main'); m.replaceChildren();
+  m.append(el('h1', 'New run'), el('p', 'Upload a requirements document. Claude drafts Epics, Stories and Tasks; nothing touches GitHub until you create the issues.', 'sub'));
+  const b = banner(); if (b) m.append(b);
+  const drop = el('div', null, 'drop'); drop.tabIndex = 0; drop.setAttribute('role', 'button');
+  const dropText = el('div'); dropText.innerHTML = '<strong>Drop a file here</strong> or click to choose<br>PDF, Word (.docx), Markdown or HTML, up to 20 MB';
+  drop.append(dropText);
+  const input = el('input'); input.type = 'file'; input.accept = '.pdf,.docx,.md,.html,.htm'; input.hidden = true;
+  const analyze = el('button', 'Analyze', 'btn'); analyze.disabled = !file;
+  const picker = modelPicker({
+    defaultTitle: (mm) => (mm.default ? `Default: ${mm.default}` : 'Default model'),
+    defaultSub: 'Uses CLAUDE_MODEL from your .env file; if that is not set either, the built-in default (Claude Haiku 4.5).',
+  });
+  const pick = (f) => { if (!f) return; file = f; analyze.disabled = false; dropText.replaceChildren(el('strong', f.name), document.createTextNode(` (${Math.round(f.size / 1024)} KB). Click to change.`)); picker.estimate(f); };
+  drop.onclick = () => input.click();
+  drop.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); input.click(); } };
+  input.onchange = () => pick(input.files[0]);
+  drop.ondragover = (e) => { e.preventDefault(); drop.classList.add('over'); };
+  drop.ondragleave = () => drop.classList.remove('over');
+  drop.ondrop = (e) => { e.preventDefault(); drop.classList.remove('over'); pick(e.dataTransfer.files[0]); };
+
+  const instr = el('input'); instr.type = 'text'; instr.placeholder = 'e.g. Tasks should be backend-only';
+  const out = el('div');
+  analyze.onclick = async () => {
+    analyze.disabled = true;
+    try {
+      const q = new URLSearchParams();
+      if (picker.value()) q.set('model', picker.value());
+      if (instr.value.trim()) q.set('instructions', instr.value.trim());
+      await api('/api/analyze?' + q, { method: 'POST', headers: { 'x-filename': encodeURIComponent(file.name) }, body: file });
+      msg(out, 'Started. Watch the command panel; you will land on the review screen when it finishes.', 'okc');
+      poll(true);
+    } catch (e) { msg(out, e.message); }
+    analyze.disabled = false;
+  };
+  m.append(drop, input, el('label', 'Claude model'),
+    el('p', 'Leave it on Default to use the model from your .env file. Costs and times are rough estimates from the file size; real use depends on the document.', 'hint'),
+    picker.node, el('label', 'Extra instructions (optional)'), instr, h('div', { class: 'row' }, analyze), out);
+  if (file) pick(file);
+}
+
+// ---------------- view: runs ----------------
+const selections = {}, pendings = {}, collapsedEpics = {}, clarOpen = {};
+let runList = [];
+async function viewRuns() {
+  const m = $('main');
+  // The run list opens wide when you arrive, and tucks away once a run is open (unless you chose otherwise).
+  const pref = store.get('listCollapsed'), listCollapsed = pref === '1' || (pref === '' && Boolean(run));
+  const wrap = h('div', { class: 'runs' + (listCollapsed ? ' list-collapsed' : '') });
+  const items = h('div', { class: 'items' }, h('div', { class: 'state hint', style: 'padding:12px' }, [h('span', { class: 'spin' }), 'Loading runs…']));
+  const toggle = h('button', { title: 'Collapse or expand the run list', 'aria-label': 'Collapse or expand the run list', on: { click: () => { wrap.classList.toggle('list-collapsed'); store.set('listCollapsed', wrap.classList.contains('list-collapsed') ? '1' : '0'); } } }, '⇤');
+  wrap.append(h('aside', { class: 'runlist' }, h('div', { class: 'head' }, h('span', {}, 'Runs'), toggle), items), h('section', { id: 'detail' }, h('p', { class: 'hint' }, 'Pick a run on the left to review it.')));
+  m.replaceChildren(wrap);
+  try { ({ runs: runList } = await api('/api/runs')); } catch (e) { items.replaceChildren(h('p', { class: 'hint err', style: 'padding:12px' }, e.message)); return; }
+  drawRunList();
+  if (!runList.length) { $('detail').replaceChildren(h('h1', {}, 'Runs'), h('p', { class: 'hint' }, 'No runs yet. Start with New run.')); return; }
+  if (run && runList.some((r) => r.name === run)) await openRun(run, true); else run = null;
+}
+function drawRunList() {
+  const box = document.querySelector('.runlist .items'); if (!box) return;
+  box.replaceChildren();
+  if (!runList.length) { box.append(h('p', { class: 'hint', style: 'padding:12px' }, 'No runs yet.')); return; }
+  const choose = (name) => { if (store.get('listCollapsed') === '') document.querySelector('.runs')?.classList.add('list-collapsed'); openRun(name); };
+  runList.forEach((r) => box.append(h('div', { class: 'runitem' + (r.name === run ? ' sel' : ''), tabIndex: 0, role: 'button', title: r.name, on: { click: () => choose(r.name), keydown: (e) => { if (e.key === 'Enter') choose(r.name); } } },
+    h('div', { class: 't' }, r.title),
+    h('div', { class: 'm' }, badge(r.stage), h('span', {}, r.items ? plural(r.items, 'item') : ''), h('span', {}, r.createdAt ? new Date(r.createdAt).toLocaleDateString() : '')))));
+}
+
+/** Same rule as the CLI: whole-token match, so "FR-1" is not found inside "NFR-1". */
+function refMatches(a, b) {
+  const [x, y] = [a.toLowerCase().trim(), b.toLowerCase().trim()];
+  if (!x || !y) return false;
+  const within = (needle, hay) => new RegExp('(^|[^a-z0-9])' + needle.replace(/[^a-z0-9]/g, (c) => '\\' + c) + '($|[^a-z0-9])').test(hay);
+  return x === y || within(x, y) || within(y, x);
+}
+const kids = (id) => detail.items.filter((i) => i.parent === id);
+const descendants = (id) => kids(id).flatMap((c) => [c, ...descendants(c.id)]);
+const byId = (id) => detail.items.find((i) => i.id === id);
+const effective = (it) => ({ ...it, ...(pendings[run]?.[it.id] || {}) });
+
+function setSelected(sel, id, on) {
+  if (on) {
+    sel.add(id); descendants(id).forEach((d) => sel.add(d.id));
+    for (let p = byId(id)?.parent; p; p = byId(p)?.parent) sel.add(p);
+  } else {
+    sel.delete(id); descendants(id).forEach((d) => sel.delete(d.id));
+    for (let p = byId(id)?.parent; p; p = byId(p)?.parent) if (!kids(p).some((k) => sel.has(k.id))) sel.delete(p);
+  }
+}
+/** The smallest id list that approves exactly the selected rows (a story id includes all its tasks). */
+function approvalIds(sel) {
+  const ids = [];
+  for (const e of detail.items.filter((i) => i.type === 'epic' && sel.has(i.id))) {
+    const all = descendants(e.id);
+    if (all.every((d) => sel.has(d.id))) { ids.push(e.id); continue; }
+    for (const s of kids(e.id).filter((x) => sel.has(x.id))) {
+      const ts = kids(s.id);
+      if (ts.every((t) => sel.has(t.id))) ids.push(s.id); else ids.push(...ts.filter((t) => sel.has(t.id)).map((t) => t.id));
+    }
+  }
+  return ids;
+}
+const sameSet = (a, b) => a.size === b.size && [...a].every((x) => b.has(x));
+const countsOf = (sel) => { const c = { epic: 0, story: 0, task: 0 }; detail.items.forEach((i) => sel.has(i.id) && c[i.type]++); return c; };
+const countText = (c) => [c.epic && plural(c.epic, 'epic'), c.story && plural(c.story, 'story').replace('storys', 'stories'), c.task && plural(c.task, 'task')].filter(Boolean).join(', ') || 'nothing';
+
+async function openRun(name, keepList) {
+  run = name;
+  if (view !== 'runs') return show('runs');
+  if (location.hash !== `#runs/${encodeURIComponent(name)}`) history.replaceState(null, '', `#runs/${encodeURIComponent(name)}`);
+  drawRunList();
+  const box = $('detail'); if (!box) return;
+  const main = $('main'), scroll = main.scrollTop;
+  if (!detail || detail.run !== name) box.replaceChildren(h('p', { class: 'hint' }, [h('span', { class: 'spin' }), 'Loading run…']));
+  try { detail = await api('/api/runs/' + encodeURIComponent(name)); } catch (e) { box.replaceChildren(h('p', { class: 'hint err' }, e.message)); return; }
+  if (run !== name) return;
+  renderRun(box);
+  main.scrollTop = scroll;
+}
+
+function stepper(d) {
+  const reviewed = Boolean(d.approved) && !d.stale, created = d.pushedCount > 0;
+  const states = [created || reviewed ? 'ok' : 'on', created ? 'ok' : reviewed ? 'on' : '', created ? 'on' : ''];
+  const labels = ['1 Review & approve', '2 Create on GitHub', '3 Conduct with Quorum'];
+  const mark = { ok: '✓ ', on: '● ', '': '○ ' };
+  return h('div', { class: 'stepper', role: 'list' }, labels.map((t, i) => h('span', { class: states[i], role: 'listitem', 'aria-label': `${t}: ${states[i] === 'ok' ? 'done' : states[i] === 'on' ? 'current' : 'pending'}` }, mark[states[i]] + t)));
+}
+
+function renderRun(box) {
+  const d = detail, locked = d.pushedCount > 0; // issues exist on GitHub, so drafts can no longer change
+  box.replaceChildren();
+  // default selection: what was approved, otherwise everything
+  if (!selections[run]) selections[run] = new Set(d.approved || d.items.map((i) => i.id));
+  const sel = selections[run];
+  pendings[run] = pendings[run] || {};
+
+  // heading with rename
+  const title = h('h2', {}, d.title);
+  const renameBtn = h('button', { class: 'btn secondary small', title: 'Rename this run', on: { click: () => {
+    const inp = h('input', { type: 'text', value: d.title, maxLength: 80, 'aria-label': 'Run name' });
+    const save = async () => { const v = inp.value.trim(); if (!v || v === d.title) return openRun(run, true); try { await post(`/api/runs/${encodeURIComponent(run)}/rename`, { title: v }); runList.find((r) => r.name === run).title = v; detail = null; openRun(run, true); } catch (e) { inp.setCustomValidity(e.message); inp.reportValidity(); } };
+    inp.onkeydown = (e) => { if (e.key === 'Enter') save(); if (e.key === 'Escape') openRun(run, true); };
+    inp.onblur = save;
+    title.replaceWith(inp); renameBtn.hidden = true; inp.focus(); inp.select();
+  } } }, 'Rename');
+  box.append(h('div', { class: 'runhead' }, title, renameBtn),
+    el('p', [d.createdAt && new Date(d.createdAt).toLocaleString(), d.model, `${d.run}`].filter(Boolean).join(' · '), 'runmeta mono'),
+    stepper(d), el('p', d.summary, 'sub'));
+  if (d.stale) box.append(el('div', 'You changed the drafts after approving them. Approve again; creating issues is blocked until you do.', 'banner'));
+
+  // ----- clarifications -----
+  if (d.flags.length) box.append(clarifications(d, locked));
+
+  // ----- issue table -----
+  box.append(el('h2', 'Review: issues in creation order', 'sec'));
+  const mixBox = h('span'), selBox = h('span', { class: 'hint', style: 'margin:0' });
+  const all = h('button', { class: 'btn secondary small', on: { click: () => { d.items.forEach((i) => sel.add(i.id)); redraw(); } } }, 'Select all');
+  const none = h('button', { class: 'btn secondary small', on: { click: () => { sel.clear(); redraw(); } } }, 'Select none');
+  const bulkPri = h('select', { 'aria-label': 'Set priority for selected' }, ['Priority…', 'high', 'medium', 'low'].map((v, i) => h('option', { value: i ? v : '' }, v)));
+  const bulkEst = h('select', { 'aria-label': 'Set size for selected' }, ['Size…', 'XS', 'S', 'M', 'L', 'XL'].map((v, i) => h('option', { value: i ? v : '' }, v)));
+  const bulkBar = h('div', { class: 'toolbar bulk' }, h('b', {}, 'Bulk edit selected:'), bulkPri, bulkEst, h('span', { class: 'hint', style: 'margin:0' }, 'then Save changes (bottom)'));
+  const applyBulk = (key, val) => {
+    if (!val) return;
+    sel.forEach((id) => stage(id, { [key]: val }));
+    bulkPri.value = bulkEst.value = ''; redraw();
+  };
+  bulkPri.onchange = () => applyBulk('priority', bulkPri.value);
+  bulkEst.onchange = () => applyBulk('estimate', bulkEst.value);
+  box.append(h('div', { class: 'toolbar' }, locked ? null : [all, none], selBox, h('span', { style: 'flex:1' }), mixBox));
+  if (!locked) box.append(bulkBar);
+  box.append(h('p', { class: 'hint', style: 'margin:0 0 6px' }, 'Tick a story to include its tasks; untick individual tasks to leave them out.'));
+
+  const tbody = h('tbody');
+  box.append(h('table', { class: 'issues' },
+    h('thead', {}, h('tr', {}, h('th', { class: 'c-cb' }, ''), h('th', { class: 'c-n' }, '#'), h('th', { class: 'c-id' }, 'ID'), h('th', {}, 'Title'), h('th', { class: 'c-pri' }, 'Priority'), h('th', { class: 'c-est' }, 'Size'), h('th', { class: 'c-gh' }, locked ? 'Issue' : 'Status'), h('th', { class: 'c-act' }, ''))), tbody));
+
+  function stage(id, patch) {
+    const orig = byId(id), cur = { ...(pendings[run][id] || {}), ...patch };
+    for (const k of Object.keys(cur)) if (JSON.stringify(cur[k]) === JSON.stringify(orig[k])) delete cur[k];
+    if (Object.keys(cur).length) pendings[run][id] = cur; else delete pendings[run][id];
+  }
+  const ancestorsCollapsed = (it) => { for (let p = it.parent; p; p = byId(p)?.parent) if (collapsedEpics[run]?.has(p)) return true; return false; };
+  function drawRows() {
+    tbody.replaceChildren();
+    if (!d.items.length) { tbody.append(emptyRow(8, 'This run has no items.')); return; }
+    d.items.forEach((raw) => {
+      if (ancestorsCollapsed(raw)) return;
+      const it = effective(raw), pend = pendings[run][raw.id];
+      const cb = h('input', { type: 'checkbox', checked: sel.has(raw.id), disabled: locked, 'aria-label': `Select ${raw.id}`, on: { change: () => { setSelected(sel, raw.id, cb.checked); redraw(); } } });
+      const mk = (opts, val, key) => h('select', { disabled: locked, 'aria-label': `${key} of ${raw.id}`, class: key === 'priority' ? 'hl-' + val : '', on: { change: (e) => { stage(raw.id, { [key]: e.target.value }); redraw(); } } }, opts.map((v) => h('option', { value: v, selected: v === val }, v)));
+      const hasKids = raw.type !== 'task' && kids(raw.id).length;
+      const tog = hasKids ? h('button', { class: 'tog', 'aria-label': 'Collapse or expand', on: { click: () => { (collapsedEpics[run] = collapsedEpics[run] || new Set()); const s = collapsedEpics[run]; s.has(raw.id) ? s.delete(raw.id) : s.add(raw.id); drawRows(); } } }, collapsedEpics[run]?.has(raw.id) ? '▸' : '▾') : null;
+      tbody.append(h('tr', { class: `${raw.type}${sel.has(raw.id) ? '' : ' dim'}` },
+        h('td', {}, cb), h('td', { class: 'n' }, String(raw.order).padStart(2, '0')), h('td', { class: 'id' }, raw.id),
+        h('td', { class: 'tt' }, tog, it.title, ' ', raw.modified ? badge('modified') : null, pend ? badge('unsaved') : null),
+        h('td', {}, mk(['high', 'medium', 'low'], it.priority, 'priority')), h('td', {}, mk(['XS', 'S', 'M', 'L', 'XL'], it.estimate, 'estimate')),
+        h('td', {}, raw.issue ? h('a', { href: raw.issue.url, target: '_blank', rel: 'noopener' }, '#' + raw.issue.number) : sel.has(raw.id) ? '' : h('span', { class: 'hint', style: 'margin:0' }, 'excluded')),
+        h('td', {}, h('button', { class: 'btn secondary small', on: { click: () => openEditor(raw, locked) } }, locked ? 'View' : 'Edit'))));
+    });
+  }
+  const footer = h('div', { class: 'foot' });
+  function drawSummary() {
+    const mix = { high: 0, medium: 0, low: 0 };
+    d.items.forEach((i) => mix[effective(i).priority]++);
+    const total = d.items.length || 1;
+    mixBox.replaceChildren(h('span', { class: 'hint', style: 'margin:0 8px 0 0' }, `Priority mix: ${mix.high} high · ${mix.medium} medium · ${mix.low} low`),
+      h('span', { class: 'mix', 'aria-hidden': 'true' }, ['high', 'medium', 'low'].map((k) => h('i', { class: k[0], style: `width:${(mix[k] / total) * 100}%` }))));
+    selBox.textContent = `${sel.size} of ${d.items.length} selected (${countText(countsOf(sel))})`;
+    bulkBar.hidden = sel.size === 0;
+  }
+  const doSave = async (box_) => {
+    try { await post(`/api/runs/${encodeURIComponent(run)}/edit`, { edits: pendings[run] }); pendings[run] = {}; poll(true); } catch (e) { msg(box_, e.message); }
+  };
+  function drawFooter() {
+    footer.replaceChildren();
+    const nPend = Object.keys(pendings[run]).length;
+    if (nPend && !locked) {
+      const out = h('span');
+      footer.append(h('div', { class: 'pending' }, `${plural(nPend, 'unsaved change')}`,
+        h('button', { class: 'btn small', on: { click: () => doSave(out) } }, 'Save changes'),
+        h('button', { class: 'btn secondary small', on: { click: () => { pendings[run] = {}; redraw(); } } }, 'Discard'), out));
+    }
+    if (locked) {
+      footer.append(h('div', { class: 'grow' }, h('b', {}, plural(d.pushedCount, 'issue')), ' already created on GitHub. Drafts are frozen.'),
+        h('button', { class: 'btn', on: { click: () => { conductorRun = run; show('conductor'); } } }, 'Conduct with Quorum →'));
+      return;
+    }
+    footer.append(h('div', { class: 'grow' }, h('b', {}, String(sel.size)), ' selected: ', countText(countsOf(sel))),
+      h('button', { class: 'btn secondary', disabled: !sel.size, on: { click: () => regenerateDialog(d, sel) } }, 'Regenerate…'),
+      h('button', { class: 'btn', disabled: !sel.size || nPend > 0, title: nPend ? 'Save or discard your changes first' : '', on: { click: () => createWizard(d, sel) } }, `Approve selected (${sel.size}) → Create on GitHub`));
+  }
+  function redraw() { drawRows(); drawSummary(); drawFooter(); }
+  drawRows(); drawSummary(); drawFooter();
+  box.append(footer);
+}
+
+// ----- clarifications: answer inline, then feed the answers into a regenerate -----
+function clarifications(d, locked) {
+  const answers = { ...d.answers };
+  // Collapsible so the issue list isn't pushed down; open while questions are unanswered.
+  const box = h('details', { class: 'clar', open: clarOpen[run] ?? Object.keys(d.answers).length < d.flags.length });
+  box.addEventListener('toggle', () => (clarOpen[run] = box.open));
+  const status = h('span', { class: 'hint', style: 'margin:0' });
+  let timer = null;
+  const persist = () => { clearTimeout(timer); timer = setTimeout(async () => { try { await post(`/api/runs/${encodeURIComponent(run)}/answers`, { answers }); status.textContent = 'Answers saved.'; } catch (e) { status.textContent = e.message; } }, 400); };
+  const count = () => Object.keys(answers).filter((k) => answers[k]).length;
+  const head = h('summary', {});
+  const updHead = () => (head.textContent = `Requirements to clarify (${count()} of ${d.flags.length} answered)`);
+  updHead();
+  box.append(head, h('p', { class: 'hint', style: 'margin:0 0 4px' }, 'Answer here, then regenerate the affected items with your answers. Answers are saved with the run.'));
+  d.flags.forEach((f, i) => {
+    const k = String(i);
+    const input = h('input', { type: 'text', value: answers[k] || '', placeholder: 'Your answer, e.g. Yes: mobile is in scope', 'aria-label': `Answer for ${f.source_ref}`, disabled: locked });
+    const q = h('div', { class: 'q' + (answers[k] ? ' answered' : '') });
+    const set = (v) => { input.value = v; if (v) answers[k] = v; else delete answers[k]; q.classList.toggle('answered', Boolean(v)); updHead(); persist(); };
+    input.oninput = () => set(input.value);
+    const quick = (t) => h('button', { class: 'btn secondary small', disabled: locked, on: { click: () => set(input.value === t ? '' : t) } }, t);
+    q.append(h('div', {}, h('span', { class: 'ref' }, f.source_ref), h('span', { class: 'why' }, f.problem)), h('div', { class: 'ask' }, f.suggestion),
+      h('div', { class: 'ans' }, quick('Yes'), quick('No'), quick('Not needed'), input));
+    box.append(q);
+  });
+  if (!locked) {
+    const out = h('span');
+    box.append(h('div', { class: 'row', style: 'margin-top:6px' }, status,
+      h('button', { class: 'btn', title: 'Rewrites the epics and stories that cite the answered requirements', on: { click: () => {
+        const answered = d.flags.map((f, i) => ({ f, a: answers[String(i)] })).filter((x) => x.a);
+        if (!answered.length) return msg(out, 'Answer at least one question first.');
+        const hit = d.items.filter((it) => it.type !== 'task' && (it.source_refs || []).some((r) => answered.some((x) => refMatches(r, x.f.source_ref))));
+        regenerateDialog(d, new Set(hit.map((x) => x.id)), {
+          feedback: 'Use these answers from the product owner to resolve open questions in the requirements:\n' + answered.map((x) => `- [${x.f.source_ref}] ${x.f.suggestion} → ${x.a}`).join('\n'),
+          note: hit.length ? `${plural(hit.length, 'epic/story')} cite the answered requirements.` : 'No epic or story cites those requirements by ID, so pick which items to rewrite below.',
+          fallbackAll: !hit.length,
+        });
+      } } }, 'Regenerate affected items with my answers'), out));
+  }
+  return box;
+}
+
+// ----- regenerate dialog -----
+function regenerateDialog(d, sel, preset = {}) {
+  openDialog({ title: 'Regenerate with Claude', build: (dlg) => {
+    const picker = modelPicker({ defaultTitle: () => 'Same model that made the drafts', defaultSub: 'Keeps the model recorded for this run' + (d.model ? ` (${d.model}).` : '.') });
+    const fb = h('textarea', { placeholder: 'e.g. Split this into smaller stories, add acceptance criteria for error cases, keep it backend-only', maxLength: 4000, autofocus: true }, preset.feedback || '');
+    const scopeSel = h('input', { type: 'radio', name: 'scope', checked: !preset.fallbackAll && sel.size > 0 }), scopeAll = h('input', { type: 'radio', name: 'scope', checked: preset.fallbackAll || sel.size === 0 });
+    const tasks = h('input', { type: 'checkbox' });
+    const out = h('div');
+    const selTop = () => [...sel].filter((id) => byId(id)?.type !== 'task');
+    const lab = (inp, text) => h('label', { class: 'inline' }, inp, text);
+    const go = h('button', { class: 'btn', on: { click: async () => {
+      if (!fb.value.trim()) return msg(out, 'Say what should change.');
+      let ids;
+      if (scopeAll.checked) ids = 'all';
+      else { const s = new Set(selTop()); if (tasks.checked) d.items.filter((i) => i.type === 'task' && s.has(i.parent)).forEach((t) => s.add(t.id)); [...sel].filter((id) => byId(id)?.type === 'task').forEach((id) => s.add(id)); ids = [...s]; }
+      if (ids !== 'all' && !ids.length) return msg(out, 'Nothing selected to regenerate.');
+      go.disabled = true;
+      try { await post(`/api/runs/${encodeURIComponent(run)}/regenerate`, { ids, feedback: fb.value.trim(), model: picker.value() || undefined }); dlg.close(true); poll(true); } catch (e) { msg(out, e.message); go.disabled = false; }
+    } } }, 'Regenerate');
+    dlg.body.append(h('h2', {}, 'Regenerate with Claude'), h('p', { class: 'sub' }, 'Claude rewrites each chosen item using your feedback. Every version is kept (see History in the editor); you approve afterwards. One API request per item.'),
+      preset.note ? h('div', { class: 'banner' }, preset.note) : null,
+      h('label', {}, 'What should change?'), fb, h('label', {}, 'Which items'),
+      lab(scopeSel, ` Selected epics and stories (${selTop().length})`), lab(scopeAll, ` Everything (${d.items.length} items)`), lab(tasks, ' Also regenerate the tasks under the selected stories'),
+      h('label', {}, 'Model'), picker.node, out, h('div', { class: 'row' }, go, h('button', { class: 'btn secondary', on: { click: () => dlg.close(false) } }, 'Cancel')));
+  } });
+}
+
+// ----- edit drawer with versions and diff -----
+function openEditor(raw, locked) {
+  const it = { ...raw, ...(pendings[run]?.[raw.id] || {}) };
+  let dirty = false;
+  openDialog({
+    title: `Edit ${raw.id}`, drawer: true,
+    onClose: () => !dirty || confirm('Discard your unsaved changes?'),
+    build: (dlg) => {
+      const title = h('input', { type: 'text', value: it.title, maxLength: 200 });
+      const desc = h('textarea', { style: 'min-height:140px' }, it.description);
+      const ac = h('textarea', { style: 'min-height:100px' }, (it.acceptance_criteria || []).join('\n'));
+      const labels = h('input', { type: 'text', value: (it.labels || []).join(', ') });
+      const sel_ = (opts, v) => h('select', {}, opts.map((o) => h('option', { value: o, selected: o === v }, o)));
+      const pri = sel_(['high', 'medium', 'low'], it.priority), est = sel_(['XS', 'S', 'M', 'L', 'XL'], it.estimate);
+      const out = h('span', { class: 'hint', style: 'margin:0' });
+      const save = h('button', { class: 'btn', disabled: true, on: { click: async () => {
+        save.disabled = true;
+        const patch = { title: title.value.trim(), description: desc.value, acceptance_criteria: ac.value.split('\n').map((x) => x.trim()).filter(Boolean), labels: labels.value.split(',').map((x) => x.trim()).filter(Boolean), priority: pri.value, estimate: est.value };
+        try { await post(`/api/runs/${encodeURIComponent(run)}/edit`, { id: raw.id, patch }); if (pendings[run]) delete pendings[run][raw.id]; dirty = false; dlg.close(true); poll(true); } catch (e) { out.textContent = e.message; save.disabled = false; }
+      } } }, 'Save');
+      const mark = () => { dirty = true; save.disabled = false; out.textContent = 'Unsaved changes'; };
+      [title, desc, ac, labels, pri, est].forEach((x) => x.addEventListener('input', mark));
+      const form = h('div', {}, h('label', {}, 'Title'), title, h('label', {}, 'Description (Markdown)'), desc, h('label', {}, 'Acceptance criteria (one per line)'), ac, h('label', {}, 'Labels (comma-separated)'), labels,
+        h('div', { class: 'two' }, h('div', {}, h('label', {}, 'Priority'), pri), h('div', {}, h('label', {}, 'Size'), est)));
+      if (locked) form.querySelectorAll('input,textarea,select').forEach((x) => (x.disabled = true));
+      const hist = h('div', {}, h('p', { class: 'hint' }, [h('span', { class: 'spin' }), 'Loading versions…']));
+      const tabEdit = h('button', { class: 'on', on: { click: () => tab('edit') } }, 'Edit'), tabHist = h('button', { on: { click: () => tab('hist') } }, 'History');
+      const tab = (t) => { tabEdit.classList.toggle('on', t === 'edit'); tabHist.classList.toggle('on', t === 'hist'); form.hidden = t !== 'edit'; hist.hidden = t !== 'hist'; };
+      hist.hidden = true;
+      api(`/api/runs/${encodeURIComponent(run)}/history/${encodeURIComponent(raw.id)}`).then((r) => { drawHistory(hist, r.versions); tabHist.textContent = `History (${r.versions.length})`; }).catch((e) => hist.replaceChildren(h('p', { class: 'hint err' }, e.message)));
+      dlg.body.append(
+        h('div', { class: 'dh' }, h('h2', { style: 'margin:0;font-size:1.05rem' }, `${raw.id} · ${raw.type}`), h('div', { class: 'tabs' }, tabEdit, tabHist)),
+        h('div', { class: 'db' }, form, hist),
+        h('div', { class: 'df' }, locked ? h('span', { class: 'hint', style: 'margin:0' }, 'Drafts are frozen once issues exist on GitHub.') : [save, h('button', { class: 'btn secondary', on: { click: () => dlg.close(false) } }, 'Cancel'), out]));
+    },
+  });
+}
+function diffLines(a, b) {
+  const n = a.length, m = b.length, dp = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));
+  for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--) dp[i][j] = a[i] === b[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+  const out = []; let i = 0, j = 0;
+  while (i < n && j < m) { if (a[i] === b[j]) { out.push(['same', a[i]]); i++; j++; } else if (dp[i + 1][j] >= dp[i][j + 1]) out.push(['del', a[i++]]); else out.push(['add', b[j++]]); }
+  while (i < n) out.push(['del', a[i++]]); while (j < m) out.push(['add', b[j++]]);
+  return out;
+}
+function drawHistory(box, versions) {
+  box.replaceChildren();
+  if (versions.length < 2) { box.append(h('p', { class: 'hint' }, versions.length ? 'No changes yet: this is the original draft from Claude.' : 'No saved versions for this item.')); return; }
+  const opts = (sel_) => versions.map((v, i) => h('option', { value: i, selected: i === sel_ }, `v${v.version}${i === 0 ? ' (original)' : i === versions.length - 1 ? ' (current)' : ''}`));
+  const from = h('select', {}, opts(versions.length - 2)), to = h('select', {}, opts(versions.length - 1));
+  const out = h('div');
+  const draw = () => {
+    const a = versions[from.value].item, b = versions[to.value].item;
+    out.replaceChildren();
+    const fields = [['title', 'Title'], ['description', 'Description'], ['acceptance_criteria', 'Acceptance criteria'], ['labels', 'Labels'], ['priority', 'Priority'], ['estimate', 'Size']];
+    let any = false;
+    for (const [k, label] of fields) {
+      const lines = (v) => (Array.isArray(v) ? v : String(v ?? '').split('\n'));
+      if (JSON.stringify(a[k]) === JSON.stringify(b[k])) continue;
+      any = true;
+      out.append(h('b', { style: 'font-size:.85rem' }, label), h('div', { class: 'diff' }, diffLines(lines(a[k]), lines(b[k])).map(([t, s]) => h('div', { class: t }, (t === 'add' ? '+ ' : t === 'del' ? '− ' : '  ') + s))));
+    }
+    if (!any) out.append(h('p', { class: 'hint' }, 'These two versions are identical.'));
+  };
+  from.onchange = to.onchange = draw;
+  box.append(h('div', { class: 'two' }, h('div', {}, h('label', {}, 'From'), from), h('div', {}, h('label', {}, 'To'), to)), h('div', { style: 'margin-top:10px' }, out));
+  draw();
+}
+
+// ----- final confirm / create wizard: approve → preview → create -----
+function createWizard(d, sel) {
+  const ids = approvalIds(sel), c = countsOf(sel);
+  const alreadyApproved = Boolean(d.approved) && !d.stale && sameSet(new Set(d.approved), sel);
+  let phase = 0; // 0 = approve + preview, 1 = create
+  openDialog({ title: 'Create on GitHub', build: (dlg) => {
+    const repoIn = h('input', { type: 'text', value: repo(), placeholder: 'owner/name', 'aria-label': 'GitHub repository' });
+    const out = h('div'), list = h('ul', { class: 'steps' });
+    const state = ['', '', ''];
+    const draw = () => list.replaceChildren(...[`Approve ${sel.size} selected items`, 'Preview on GitHub (dry run, creates nothing)', `Create ${sel.size} issues in ${repoIn.value || 'the repository'}`].map((t, i) =>
+      h('li', { class: state[i] }, h('span', { class: 'dot' }, state[i] === 'done' ? '✓' : String(i + 1)), t, state[i] === 'now' ? h('span', { class: 'spin', style: 'margin-left:6px' }) : null)));
+    if (alreadyApproved) state[0] = 'done';
+    draw(); repoIn.addEventListener('input', draw);
+    const go = h('button', { class: 'btn', autofocus: true, on: { click: async () => {
+      if (!repoRe.test(repoIn.value.trim())) return msg(out, 'Enter the repository as owner/name.');
+      store.set('repo', repoIn.value.trim()); $('repo').value = repoIn.value.trim();
+      go.disabled = true; repoIn.disabled = true; out.replaceChildren();
+      try {
+        if (phase === 0) {
+          if (state[0] !== 'done') { state[0] = 'now'; draw(); const j = await waitJob((await post(`/api/runs/${encodeURIComponent(run)}/approve`, { ids })).id); poll(true); if (j.status !== 'done') throw new Error('Approving failed. See the command panel.'); state[0] = 'done'; }
+          state[1] = 'now'; draw();
+          const j2 = await waitJob((await post(`/api/runs/${encodeURIComponent(run)}/push`, { repo: repoIn.value.trim(), dryRun: true })).id); poll(true);
+          if (j2.status !== 'done') throw new Error('The preview failed. See the command panel.');
+          state[1] = 'done'; state[2] = 'now'; draw();
+          phase = 1; go.textContent = `Create ${sel.size} issues in ${repoIn.value.trim()}`; go.classList.add('danger'); go.disabled = false;
+          out.replaceChildren(h('p', { class: 'hint okc' }, 'Preview finished (see the command panel). Nothing has been created yet.'));
+        } else {
+          state[1] = 'done'; state[2] = 'now'; draw();
+          const j = await waitJob((await post(`/api/runs/${encodeURIComponent(run)}/push`, { repo: repoIn.value.trim(), confirm: true })).id); poll(true);
+          if (j.status !== 'done') throw new Error('Creating issues failed. See the command panel.');
+          state[2] = 'done'; draw(); dlg.close(true); openRun(run, true);
+        }
+      } catch (e) { msg(out, e.message); go.disabled = false; repoIn.disabled = false; state.forEach((s, i) => s === 'now' && (state[i] = '')); draw(); }
+    } } }, alreadyApproved ? 'Preview (dry run)' : 'Approve & preview');
+    dlg.body.append(h('h2', {}, 'Create on GitHub'), h('p', { class: 'sub' }, 'Final check. Nothing is created until the last step.'),
+      h('dl', { class: 'facts' }, h('dt', {}, 'Repository'), h('dd', {}, repoIn), h('dt', {}, 'Issues'), h('dd', {}, `${sel.size} (${countText(c)})`), h('dt', {}, 'Run'), h('dd', {}, d.title)),
+      list, out, h('div', { class: 'row' }, go, h('button', { class: 'btn secondary', on: { click: () => dlg.close(false) } }, 'Cancel')));
+  } });
+}
+
+// ---------------- view: conductor ----------------
+let conductorRun = null, loopOn = false, conductorRefresh = () => {}, lastConductor = null;
+async function viewConductor() {
+  const m = $('main'); m.replaceChildren(el('h1', 'Conductor'), el('p', 'Queues one story at a time for Quorum, in the order below. The next story is queued only after the previous one is merged and closed.', 'sub'));
+  let runs;
+  m.append(h('p', { class: 'hint', id: 'cload' }, [h('span', { class: 'spin' }), 'Loading runs…']));
+  try { ({ runs } = await api('/api/runs')); } catch (e) { $('cload').replaceWith(h('p', { class: 'hint err' }, e.message)); return; }
+  $('cload').remove();
+  const pushed = runs.filter((r) => r.stage === 'pushed');
+  if (!pushed.length) { m.append(h('p', { class: 'hint' }, 'No run has been pushed to GitHub yet. Create issues first, from Runs.')); return; }
+  if (!conductorRun || !pushed.some((r) => r.name === conductorRun)) conductorRun = pushed[0].name;
+  const sel = h('select', { 'aria-label': 'Run', on: { change: () => { conductorRun = sel.value; viewConductor(); } } }, pushed.map((r) => h('option', { value: r.name, selected: r.name === conductorRun }, r.title)));
+  const tb = h('tbody');
+  const t = h('table', {}, h('thead', {}, h('tr', {}, ['#', 'Story', 'Issue', 'State', 'Labels', 'PR'].map((x) => h('th', {}, x)))), tb);
+  const note = el('p', '', 'hint'), skip = h('input', { type: 'checkbox' });
+  const refresh = h('button', { class: 'btn secondary' }, 'Refresh status'), dry = h('button', { class: 'btn secondary' }, 'Preview next dispatch'),
+    once = h('button', { class: 'btn' }, 'Dispatch next story to Quorum'), start = h('button', { class: 'btn' }, 'Start auto-dispatch'), stop = h('button', { class: 'btn danger' }, 'Stop auto-dispatch');
+  stop.hidden = !loopOn; start.hidden = loopOn;
+  const out = el('div');
+  m.append(sel, t, note, h('label', { class: 'inline' }, skip, ' Skip stories closed as "not planned"'), h('div', { class: 'row' }, refresh, dry, once, start, stop), out);
+
+  const load = async () => {
+    if (view !== 'conductor') return;
+    if (!repoRe.test(repo())) { tb.replaceChildren(emptyRow(6, 'Enter the repository (top right) as owner/name.')); note.textContent = ''; return; }
+    if (!lastConductor || lastConductor.run !== conductorRun) tb.replaceChildren(loadingRow(6, 'Reading issue states from GitHub…'));
+    try {
+      const d = await api(`/api/runs/${encodeURIComponent(conductorRun)}/conductor?repo=${encodeURIComponent(repo())}`);
+      lastConductor = { run: conductorRun, d };
+      tb.replaceChildren();
+      if (!d.rows.length) tb.append(emptyRow(6, 'This run has no stories to hand to Quorum.'));
+      d.rows.forEach((r) => {
+        tb.append(h('tr', { class: r.number === d.next ? 'next' : '' }, h('td', {}, String(r.order)), h('td', {}, `${r.id} ${r.title}`),
+          h('td', {}, h('a', { href: r.url, target: '_blank', rel: 'noopener' }, '#' + r.number)), h('td', {}, badge(r.state === 'done' ? 'completed' : r.state)),
+          h('td', {}, r.labels.map((l) => el('span', l, 'lab'))), h('td', {}, r.prs.map((p) => `#${p.number}${p.merged ? '' : '?'}`).join(' '))));
+      });
+      note.textContent = (d.next ? `Next in line: #${d.next} (highlighted). ` : 'Every story is completed. ') + (d.excluded.length ? `${d.excluded.length} duplicate(s) skipped.` : '');
+    } catch (e) { tb.replaceChildren(errorRow(6, e.message)); note.textContent = ''; }
+  };
+  conductorRefresh = load; load();
+  const go = (mode) => async () => {
+    if (!repoRe.test(repo())) return msg(out, 'Enter the repository (top right) as owner/name.');
+    try { await post(`/api/runs/${encodeURIComponent(conductorRun)}/conduct`, { repo: repo(), mode, skipDropped: skip.checked }); out.replaceChildren(); poll(true); } catch (e) { msg(out, e.message); }
+  };
+  const nextLine = () => { const d = lastConductor?.d; const n = d?.rows.find((r) => r.number === d.next); return n ? `Next story: #${n.number} ${n.title}` : 'Next story: unknown until the status loads'; };
+  const remaining = () => lastConductor?.d.rows.filter((r) => r.state !== 'done').length;
+  refresh.onclick = load; dry.onclick = go('dry');
+  once.onclick = async () => { if (await confirmDialog({ title: 'Dispatch the next story?', lines: [`This adds the quorum:queued label to one story in ${repo()}, which tells Quorum to start work.`, nextLine()], confirmText: 'Dispatch to Quorum' })) go('once')(); };
+  start.onclick = async () => {
+    if (await confirmDialog({
+      title: 'Start auto-dispatch?',
+      lines: [`Every 30 seconds the Conductor checks ${repo()} and queues the next story for Quorum as soon as the previous one is merged and closed. It keeps going until you stop it or every story is done.`, nextLine(), remaining() != null ? `${plural(remaining(), 'story')} still to do.` : ''].filter(Boolean),
+      ack: `I understand this will add labels to issues in ${repo()} without further prompts.`, confirmText: 'Start auto-dispatch', danger: true,
+    })) go('start')();
+  };
+  stop.onclick = go('stop');
+}
+
+// ---------------- view: history ----------------
+let historyEvents = null;
+async function viewHistory() {
+  const m = $('main'); m.replaceChildren(el('h1', 'History'), el('p', 'Everything that happened across all runs (drafts/history.log), newest first. Showing the latest 200 events.', 'sub'));
+  const tb = h('tbody', {}, loadingRow(4, 'Loading history…'));
+  const runSel = h('select', { 'aria-label': 'Filter by run' }), evSel = h('select', { 'aria-label': 'Filter by event' }), q = h('input', { type: 'text', placeholder: 'Search details…', 'aria-label': 'Search details' });
+  const count = el('span', '', 'hint'); count.style.margin = '0';
+  m.append(h('div', { class: 'toolbar' }, runSel, evSel, h('span', { style: 'flex:1;min-width:160px' }, q), count),
+    h('table', { style: 'table-layout:fixed' }, h('thead', {}, h('tr', {}, h('th', { style: 'width:150px' }, 'Time'), h('th', { style: 'width:120px' }, 'Event'), h('th', { style: 'width:190px' }, 'Run'), h('th', {}, 'Details'))), tb));
+  let events, titles = Object.fromEntries(runList.map((r) => [r.name, r.title]));
+  try {
+    [{ events }, { runs: runList }] = await Promise.all([api('/api/history'), api('/api/runs')]);
+    titles = Object.fromEntries(runList.map((r) => [r.name, r.title]));
+  } catch (e) { tb.replaceChildren(errorRow(4, e.message)); return; }
+  historyEvents = events;
+  const uniq = (xs) => [...new Set(xs)].sort();
+  runSel.replaceChildren(h('option', { value: '' }, 'All runs'), ...uniq(events.map((e) => e.run)).map((r) => h('option', { value: r }, titles[r] || r)));
+  evSel.replaceChildren(h('option', { value: '' }, 'All events'), ...uniq(events.map((e) => e.event)).map((r) => h('option', { value: r }, r)));
+  const draw = () => {
+    const text = q.value.trim().toLowerCase();
+    const rows = events.filter((e) => (!runSel.value || e.run === runSel.value) && (!evSel.value || e.event === evSel.value) && (!text || e.details.toLowerCase().includes(text)));
+    count.textContent = `${rows.length} of ${events.length}`;
+    tb.replaceChildren();
+    if (!events.length) return tb.append(emptyRow(4, 'Nothing has happened yet.'));
+    if (!rows.length) return tb.append(emptyRow(4, 'No events match these filters.'));
+    rows.forEach((e) => tb.append(h('tr', {}, h('td', {}, new Date(e.time).toLocaleString()), h('td', { class: 'mono' }, e.event), h('td', { title: e.run }, titles[e.run] || e.run), h('td', { style: 'overflow-wrap:anywhere;white-space:pre-wrap' }, e.details))));
+  };
+  runSel.onchange = evSel.onchange = draw; q.oninput = draw; draw();
+}
+
+// ---------------- command timeline ----------------
+const stepEls = new Map(), handled = new Set();
+let firstPoll = true, timer = null, lastFinished = null;
+const fmt = (iso) => (iso ? new Date(iso).toLocaleTimeString() : '');
+const dur = (a, b) => { const s = Math.round(((b ? new Date(b) : new Date()) - new Date(a)) / 1000); return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`; };
+
+/** Hides file paths and the CLI's own "Next: reqagent ..." hints; the panel shows clickable next steps instead. */
+function cleanLog(text) {
+  const out = []; let skip = false;
+  for (let line of text.split('\n')) {
+    if (/^\s*(Next\b|Then create the issues)/i.test(line)) { skip = true; continue; }
+    if (skip && /^\s+\S/.test(line)) continue;
+    skip = false;
+    if (/^\s*(Saved to|Full preview:)/i.test(line)) continue;
+    line = line.replace(/[A-Za-z]:\\(?:[^\s\\"'<>|]+\\)*([^\s\\"'<>|]*)/g, '…/$1').replace(/(?<![\w:.\/-])\/(?:[\w.-]+\/)+([\w.-]+)/g, '…/$1');
+    out.push(line);
+  }
+  return out.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+const jobRun = (j) => j.run || /--run (\S+)/.exec(j.command)?.[1] || null;
+function nextSteps(j) {
+  const r = jobRun(j), steps = [];
+  const open = async (name, after) => { run = name; detail = null; if (view !== 'runs') await show('runs'); else await openRun(name); after?.(); };
+  if (j.status === 'done') {
+    if (j.label === 'analyze' && r) steps.push(['Review the drafts →', () => open(r)]);
+    if (['approve', 'dry run'].includes(j.label) && r) steps.push(['Create on GitHub →', () => open(r, () => detail && createWizard(detail, selections[r] || new Set(detail.items.map((i) => i.id))))]);
+    if (['regenerate', 'edit'].includes(j.label) && r) steps.push(['Review the changes →', () => open(r)]);
+    if (j.label === 'push' && r) steps.push(['Conduct with Quorum →', () => { conductorRun = r; show('conductor'); }]);
+    if (j.label.startsWith('conductor')) steps.push(['View the Conductor →', () => show('conductor')]);
+  } else if (j.status === 'failed' && r) steps.push(['Open this run', () => open(r)]);
+  return steps;
+}
+function progressOf(j, clean) {
+  const nums = [...j.log.matchAll(/\[(\d+)\/(\d+)\]/g)].pop();
+  const last = clean.split('\n').filter(Boolean).pop();
+  return { pct: nums ? (Number(nums[1]) / Number(nums[2])) * 100 : null, label: nums ? `${nums[1]} of ${nums[2]} done` : '', last };
+}
+
+async function poll(fast) {
+  clearTimeout(timer);
+  let a;
+  try { a = await api('/api/activity'); } catch { timer = setTimeout(poll, 4000); return; }
+  const tl = $('tl');
+  if (a.jobs.length) tl.querySelector('.empty')?.remove();
+  const finished = a.jobs.filter((j) => j.status !== 'running').at(-1);
+  for (const j of a.jobs) {
+    let s = stepEls.get(j.id);
+    if (!s) {
+      const d = el('details', null, 'step'); const sum = el('summary'); const pre = el('pre'); const prog = el('div', null, 'prog'); prog.append(el('i')); const now = el('div', null, 'now'); const nx = el('div', null, 'next');
+      sum.append(el('span', '', 'seq'), el('span', '', 'cmd'), el('span'), el('span', '', 'when')); d.append(sum, prog, now, pre, nx);
+      d.open = j.status === 'running'; tl.append(d); s = { d, sum, pre, prog, now, nx }; stepEls.set(j.id, s);
+    }
+    s.d.className = 'step ' + j.status;
+    s.sum.children[0].textContent = String(j.seq);
+    s.sum.children[1].textContent = j.command;
+    s.sum.children[2].replaceChildren(badge(j.status));
+    s.sum.children[3].textContent = `${j.label} · ${fmt(j.startedAt)} · ${dur(j.startedAt, j.endedAt)}${j.status === 'failed' ? ` · exit ${j.code}` : ''}`;
+    const clean = cleanLog(j.log), p = progressOf(j, clean), running = j.status === 'running';
+    s.prog.hidden = s.now.hidden = !running;
+    if (running) {
+      s.prog.classList.toggle('indet', p.pct == null);
+      s.prog.firstChild.style.width = p.pct == null ? '' : p.pct + '%';
+      s.now.replaceChildren(h('span', { class: 'spin' }), p.label || p.last || 'Starting…', p.label && p.last ? ` · ${p.last}` : '');
+    }
+    s.pre.hidden = !clean && running;
+    const atBottom = s.pre.scrollTop + s.pre.clientHeight >= s.pre.scrollHeight - 8;
+    s.pre.textContent = clean || (running ? '' : '(no output)');
+    if (atBottom) s.pre.scrollTop = s.pre.scrollHeight;
+    if (running && !s.seenRunning) { s.seenRunning = true; tl.scrollTop = tl.scrollHeight; }
+    // clickable next steps only on the most recent finished command
+    s.nx.replaceChildren();
+    if (finished && j.id === finished.id) nextSteps(j).forEach(([t, fn]) => s.nx.append(h('button', { class: 'btn small', on: { click: fn } }, t)));
+    s.nx.hidden = !s.nx.firstChild;
+    if (j.status !== 'running' && !handled.has(j.id)) { handled.add(j.id); if (!firstPoll) afterJob(j); }
+  }
+  const running = a.jobs.some((j) => j.status === 'running'), loop = a.loop?.status === 'running';
+  const st = $('tlState'); st.className = 'badge ' + (running ? 'running' : loop ? 'running' : 'idle'); st.textContent = running ? 'running' : loop ? 'auto-dispatch on' : 'idle';
+  $('timeline').title = running ? 'A command is running' : '';
+  if (loop !== loopOn) { loopOn = loop; if (view === 'conductor') viewConductor(); }
+  if (loop && view === 'conductor') conductorRefresh();
+  firstPoll = false;
+  timer = setTimeout(poll, running || loop || fast ? 1000 : 4000);
+}
+
+/** What to show when a command finishes. */
+function afterJob(j) {
+  if (j.status === 'done' && j.label === 'analyze' && j.run) { run = j.run; detail = null; show('runs'); return; }
+  if (['approve', 'dry run', 'push', 'regenerate', 'edit'].includes(j.label) && view === 'runs' && run) openRun(run, true);
+  if (j.label.startsWith('conductor') && view === 'conductor') conductorRefresh();
+}
+
+// command panel collapse
+function setTl(collapsed) {
+  $('layout').classList.toggle('tl-collapsed', collapsed); $('timeline').classList.toggle('collapsed', collapsed);
+  $('tlToggle').textContent = collapsed ? '⇤' : '⇥'; store.set('tlCollapsed', collapsed ? '1' : '');
+}
+$('tlToggle').onclick = () => setTl(!$('timeline').classList.contains('collapsed'));
+$('timeline').addEventListener('click', (e) => { if ($('timeline').classList.contains('collapsed') && e.target !== $('tlToggle')) setTl(false); });
+
+// ---------------- boot ----------------
+(async () => {
+  $('repo').value = store.get('repo');
+  setTl(store.get('tlCollapsed') === '1');
+  try { config = await api('/api/config'); if (!$('repo').value) $('repo').value = config.repo || ''; } catch {}
+  const [v, name] = decodeURIComponent(location.hash.slice(1)).split('/');
+  if (['new', 'runs', 'conductor', 'history'].includes(v)) { if (name) run = name; show(v); } else show('new');
+  poll();
+})();
+</script>
+</body>
+</html>

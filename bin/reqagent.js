@@ -173,12 +173,12 @@ program
               ? 'failed'
               : 'incomplete';
       const meta = await runs.readJson(dir, runs.FILES.meta, null).catch(() => null);
-      rows.push({ name, dir, status, model: meta?.model || '' });
+      rows.push({ name, dir, status, model: meta?.model || '', title: meta ? runs.friendlyTitle(meta, name) : '' });
     }
     const color = { pushed: pc.green, approved: pc.cyan, drafted: pc.yellow, failed: pc.red, incomplete: pc.dim };
 
     if (!opts.clean) {
-      for (const r of rows) console.log(`${color[r.status](r.status.padEnd(11))} ${r.name}  ${pc.dim(r.model)}`);
+      for (const r of rows) console.log(`${color[r.status](r.status.padEnd(11))} ${r.name}  ${r.title ? pc.bold(r.title) + '  ' : ''}${pc.dim(r.model)}`);
       const stale = rows.filter((r) => r.status === 'failed' || r.status === 'incomplete').length;
       if (stale) console.log(pc.dim(`\n${stale} unfinished run(s). Remove them with: reqagent runs --clean`));
       return;
