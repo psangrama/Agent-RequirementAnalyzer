@@ -1,0 +1,25 @@
+node_modules
+npm-debug.log*
+.git
+.gitignore
+
+# never copy secrets or your data into the image
+.env
+.env.*
+!.env.example
+drafts
+input
+
+# not needed at run time
+*.log
+.DS_Store
+Claude outputs
+Claude-Memory-Transfer.md
+*Memory*.md
+References
+linkedin
+CODE_WALKTHROUGH.md
+CLAUDE.md
+INTEGRATION-PLAN.md
+Dockerfile
+docker-compose.yml

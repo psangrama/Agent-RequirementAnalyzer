@@ -91,6 +91,12 @@
   .runs.list-collapsed .runlist .head { flex-direction: column; gap: 8px; padding: 8px 4px; }
   .runs.list-collapsed .runlist .head span { writing-mode: vertical-rl; }
   .repo label { white-space: nowrap; }
+  .helpbtn { width: 28px; height: 28px; border-radius: 50%; border: 1px solid #38425a; background: transparent; color: var(--nav-text); font: 700 .9rem system-ui; cursor: pointer; margin: 8px 0; }
+  .helpbtn:hover { color: #fff; border-color: #fff; }
+  .help h3 { margin: 16px 0 4px; font-size: .95rem; } .help p, .help li { font-size: .88rem; margin: 4px 0; } .help ul { padding-left: 20px; margin: 4px 0; }
+  .help code { font: .8rem ui-monospace, Consolas, monospace; background: var(--bg); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
+  .help a { color: var(--accent); }
+  .help .st { font-weight: 700; } .help .st.on { color: var(--ok); } .help .st.off { color: var(--err); }
   details.clar > summary { cursor: pointer; list-style: none; font-weight: 700; font-size: .95rem; }
   details.clar > summary::-webkit-details-marker { display: none; }
   details.clar > summary::before { content: '▸ '; } details.clar[open] > summary::before { content: '▾ '; }
@@ -206,6 +212,7 @@
     <button data-view="history">History</button>
   </nav>
   <div class="repo"><label for="repo" style="margin:0;font-weight:400">GitHub repo</label><input type="text" id="repo" placeholder="owner/name"></div>
+  <button id="helpBtn" class="helpbtn" title="Help: API keys and GitHub token" aria-label="Help: API keys and GitHub token">?</button>
 </header>
 
 <div class="layout" id="layout">
@@ -364,6 +371,30 @@ function show(v, opts = {}) {
   return ({ new: viewNew, runs: viewRuns, conductor: viewConductor, history: viewHistory })[v](opts);
 }
 $('repo').oninput = () => store.set('repo', repo());
+
+// ---------------- help: keys and tokens (values are never shown) ----------------
+$('helpBtn').onclick = () => openDialog({ title: 'API keys and GitHub token', build: (d) => {
+  const st = (on) => h('span', { class: 'st ' + (on ? 'on' : 'off') }, on ? '✓ set' : '✗ not set');
+  const link = (href, text) => h('a', { href, target: '_blank', rel: 'noopener' }, text);
+  d.body.append(h('div', { class: 'help' },
+    h('h2', {}, 'API keys and GitHub token'),
+    h('p', { class: 'hint' }, 'These live in the ', h('code', {}, '.env'), ' file on the machine running this server (or in the environment variables of your host). They are never typed into this page and never shown here.'),
+    h('h3', {}, 'ANTHROPIC_API_KEY  ', st(config.hasAnthropicKey)),
+    h('ul', {}, h('li', {}, 'Lets Claude draft and rewrite the issues. Create one at ', link('https://console.anthropic.com/settings/keys', 'console.anthropic.com/settings/keys'), '.'), h('li', {}, 'Used for Analyze and Regenerate, and to list the available models.')),
+    h('h3', {}, 'GITHUB_TOKEN  ', st(config.hasGithubToken)),
+    h('ul', {},
+      h('li', {}, 'Creates the issues, and lets the Conductor read and label them. Create a ', h('b', {}, 'fine-grained'), ' token at ', link('https://github.com/settings/personal-access-tokens', 'github.com/settings/personal-access-tokens'), '.'),
+      h('li', {}, 'Repository access: choose ', h('b', {}, 'only the repo(s)'), ' you want issues in.'),
+      h('li', {}, 'Permissions: ', h('b', {}, 'Issues: Read and write'), ' (Metadata: Read is added automatically). Nothing else is needed.'),
+      h('li', {}, 'The repo field at the top of this page must be a repo the token can reach, as ', h('code', {}, 'owner/name'), '. Try it on a test repo first.'),
+      h('li', {}, 'Errors such as "not found, or the token can\'t see it" usually mean the token lacks access to that repo or has expired.')),
+    h('h3', {}, 'Optional settings'),
+    h('ul', {}, h('li', {}, h('code', {}, 'GITHUB_REPO=owner/name'), ' pre-fills the repo field', config.repo ? ` (currently ${config.repo})` : '', '.'),
+      h('li', {}, h('code', {}, 'CLAUDE_MODEL'), ' sets the default model. Changes to it apply without a restart.')),
+    h('h3', {}, 'After changing a key'),
+    h('p', {}, 'Restart the server so it picks up the new value (', h('code', {}, 'docker compose restart web'), ' in Docker). Keep ', h('code', {}, '.env'), ' private: it holds secrets and is already excluded from git and from the Docker image.'),
+    h('div', { class: 'row' }, h('button', { class: 'btn', autofocus: true, on: { click: () => d.close(false) } }, 'Close'))));
+} });
 
 function banner() {
   const missing = [!config.hasAnthropicKey && 'ANTHROPIC_API_KEY', !config.hasGithubToken && 'GITHUB_TOKEN'].filter(Boolean);

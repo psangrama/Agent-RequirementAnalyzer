@@ -178,6 +178,33 @@ npm run web          # then open http://localhost:3000   (PORT=4000 npm run web 
 - **Safety:** the server listens on `127.0.0.1` only, rejects requests that don't come from its own page, runs commands with an argument list (never a shell), validates the repo, model and IDs, runs one command at a time, and only creates issues when the request carries an explicit confirmation after a successful preview. Don't expose the port to a network: whoever can reach it can use your tokens.
 - Test it offline: `node test/web-offline.mjs` (server), and `node test/web-browser.mjs` (drives the real page in headless Chrome or Edge; skips itself if neither is installed, set `CHROME_PATH` to point at one, `SHOT_DIR=<folder>` saves screenshots).
 
+## Run with Docker (or without it)
+
+The same code runs either way: install Node and use the commands above, or use the Docker image, which has the web UI and all three CLI commands (`reqagent`, `reqagent-revise`, `reqagent-conduct`). Both use the same `drafts/` folder format, so you can start in one and carry on in the other.
+
+One-time setup: copy `.env.example` to `.env` and fill it in (the file must exist; it is mounted into the container, never copied into the image). Put your requirement files in an `input/` folder.
+
+```bash
+# web UI: build, start in the background, open http://localhost:3000
+docker compose up -d --build
+docker compose logs -f web          # watch it;  docker compose down  to stop
+
+# CLI: any command, files from ./input appear at /input, results land in ./drafts
+docker compose run --rm cli reqagent analyze /input/my-prd.pdf --no-review
+docker compose run --rm cli reqagent review --run <run>            # the interactive menu works (it needs a terminal)
+docker compose run --rm cli reqagent-revise answers --run <run>
+docker compose run --rm cli reqagent-conduct --run <run> --repo owner/name
+docker compose run --rm cli npm test                               # the offline tests, inside the container
+```
+
+- **Different port:** `PORT=4000 docker compose up -d` (the page is then at http://localhost:4000).
+- **Safety:** the port is published on your machine only (`127.0.0.1`), not your network; the server still rejects requests that don't come from its own page. Don't change that mapping to `0.0.0.0`: whoever can reach the page can use your tokens.
+- **Changing the model:** edit `.env`. Because the file is mounted, the web UI picks up `CLAUDE_MODEL` changes without a restart, like outside Docker. Other values (API keys, repo) need `docker compose restart web`.
+- **Files on Linux:** the container writes `drafts/` as user 1000. If your user has a different ID: `UID=$(id -u) GID=$(id -g) docker compose up -d`.
+- **Plain `docker run`** also works: `docker build -t reqagent .` then `docker run --rm -it -v ./.env:/app/.env:ro -v ./drafts:/app/drafts reqagent reqagent runs` (add `-p 127.0.0.1:3000:3000` and drop the command to run the web UI).
+- The browser test (`test/web-browser.mjs`) skips itself in the image because there is no browser in it.
+- Docker Desktop (Windows/macOS) must be running before any `docker` command.
+
 ## Troubleshooting
 
 | Message | What to do |

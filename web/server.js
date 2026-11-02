@@ -40,7 +40,7 @@ const { loadRun } = await import('../src/conductor/stories.js');
 const { createGithub } = await import('../src/conductor/github-state.js');
 const { readStates } = await import('../src/conductor/dispatch.js');
 
-const PORT = Number(process.env.PORT || process.argv[2] || 3000);
+const PORT = Number(process.argv[2] || process.env.PORT || 3000); // an explicit argument beats the environment
 const CLI = path.join(ROOT, 'bin', 'reqagent.js');
 const CONDUCT = path.join(ROOT, 'bin', 'conduct.js');
 const REVISE = path.join(ROOT, 'bin', 'revise.js');
@@ -450,7 +450,10 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, '127.0.0.1', () => console.log(`reqagent web UI: http://localhost:${PORT}`));
+// HOST is 127.0.0.1 unless you change it. In Docker it is 0.0.0.0 inside the container, and the compose file
+// publishes the port on the host's 127.0.0.1 only. The Host-header check above still applies either way.
+const HOST = process.env.HOST || '127.0.0.1';
+server.listen(PORT, HOST, () => console.log(`reqagent web UI: http://localhost:${PORT}`));
 const shutdown = () => fs.rm(uploadDir, { recursive: true, force: true }).finally(() => process.exit(0));
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);

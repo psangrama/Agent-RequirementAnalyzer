@@ -263,6 +263,20 @@ try {
   await waitFor(`[...document.querySelectorAll('.mcard .est')].some((e) => /\\d+s|min/.test(e.innerText))`, 'cost and time estimates after choosing a file');
   await shot('10-new-run');
 
+  // ---- help icon after the repo field: explains the keys and GitHub token, never shows secrets ----
+  assert.ok(await ev(`(() => { const r = document.querySelector('.repo').getBoundingClientRect(), b = document.querySelector('#helpBtn').getBoundingClientRect(); return b.left >= r.right - 1 && b.right <= window.innerWidth; })()`), 'the ? button sits after the repo field, top right');
+  await ev(`document.querySelector('#helpBtn').click(); true`);
+  await waitFor(`document.querySelector('.modal .help')`, 'help dialog');
+  const help = await ev(`document.querySelector('.modal .help').innerText`);
+  assert.match(help, /ANTHROPIC_API_KEY\s+✓ set/);
+  assert.match(help, /GITHUB_TOKEN\s+✓ set/);
+  assert.match(help, /Issues: Read and write/);
+  assert.match(help, /fine-grained/);
+  assert.doesNotMatch(help, /sk-ant|github_pat_/, 'no secret values are shown');
+  await shot('11-help');
+  await ev(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })); true`);
+  await waitFor(`!document.querySelector('.modal')`, 'Escape closes the help dialog');
+
   assert.deepEqual(errors, [], 'no errors in the browser console');
   console.log('✔ web UI browser test passed');
 } catch (err) {

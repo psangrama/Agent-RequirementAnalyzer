@@ -1,0 +1,40 @@
+# Two ways to run the same image:
+#   web UI:  docker compose up -d --build        then open http://localhost:3000
+#   CLI:     docker compose run --rm cli reqagent analyze /input/my-prd.pdf
+#            docker compose run --rm cli reqagent-conduct --run <run> --repo owner/name
+# Setup once: copy .env.example to .env and fill it in. Your files go in ./input, results land in ./drafts.
+# The CLI and the web UI share ./drafts, so you can start in one and carry on in the other, or run the
+# same commands without Docker (npm install; reqagent ...) against the same folder.
+
+x-reqagent: &reqagent
+  build: .
+  image: reqagent
+  volumes:
+    # .env is mounted (not copied into the image): the CLI and web UI read it exactly as they do outside Docker,
+    # including the web UI picking up CLAUDE_MODEL changes without a restart. The file must exist.
+    - type: bind
+      source: ./.env
+      target: /app/.env
+      read_only: true
+      bind: { create_host_path: false }
+    - ./drafts:/app/drafts
+    - ./input:/input:ro
+  # Linux hosts: files in ./drafts are written as this user. Set UID/GID if yours aren't 1000.
+  user: "${UID:-1000}:${GID:-1000}"
+
+services:
+  web:
+    <<: *reqagent
+    ports:
+      - "127.0.0.1:${PORT:-3000}:3000" # published on your machine only; the page can create GitHub issues
+    environment:
+      PORT: 3000
+    restart: unless-stopped
+
+  cli:
+    <<: *reqagent
+    profiles: ["cli"] # only starts when you ask for it: docker compose run --rm cli <command>
+    entrypoint: []
+    command: ["reqagent", "--help"]
+    stdin_open: true
+    tty: true # needed for the interactive review menu
