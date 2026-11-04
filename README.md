@@ -202,6 +202,15 @@ docker compose run --rm cli npm test                               # the offline
 - **Changing the model:** edit `.env`. Because the file is mounted, the web UI picks up `CLAUDE_MODEL` changes without a restart, like outside Docker. Other values (API keys, repo) need `docker compose restart web`.
 - **Files on Linux:** the container writes `drafts/` as user 1000. If your user has a different ID: `UID=$(id -u) GID=$(id -g) docker compose up -d`.
 - **Plain `docker run`** also works: `docker build -t reqagent .` then `docker run --rm -it -v ./.env:/app/.env:ro -v ./drafts:/app/drafts reqagent reqagent runs` (add `-p 127.0.0.1:3000:3000` and drop the command to run the web UI).
+- **Ready-made image (no build, no clone needed):** every push to `main` is tested and published by GitHub Actions (`.github/workflows/docker.yml`) as `ghcr.io/psangrama/agent-requirementanalyzer` (`:latest`, `:sha-<commit>`, and `:1.2.3` for a `v1.2.3` tag), for Intel/AMD and ARM. To run it you only need Docker and a `.env` file:
+  ```bash
+  docker run -d --name reqagent -p 127.0.0.1:3000:3000 \
+    -v "$PWD/.env:/app/.env:ro" -v "$PWD/drafts:/app/drafts" \
+    ghcr.io/psangrama/agent-requirementanalyzer:latest        # then open http://localhost:3000
+  docker run --rm -it -v "$PWD/.env:/app/.env:ro" -v "$PWD/drafts:/app/drafts" \
+    ghcr.io/psangrama/agent-requirementanalyzer:latest reqagent runs      # any CLI command
+  ```
+  With the compose file: `REQAGENT_IMAGE=ghcr.io/psangrama/agent-requirementanalyzer:latest docker compose up -d --no-build`. Update with `docker pull` (or `docker compose pull`) and recreate the container. **Publisher note:** a package is private the first time it is pushed. In GitHub, open the repo's *Packages*, then the package's *Package settings*, and set the visibility to Public so others can pull it without logging in.
 - The browser test (`test/web-browser.mjs`) skips itself in the image because there is no browser in it.
 - Docker Desktop (Windows/macOS) must be running before any `docker` command.
 

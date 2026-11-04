@@ -8,7 +8,8 @@
 
 x-reqagent: &reqagent
   build: .
-  image: reqagent
+  # To use the published image instead of building: REQAGENT_IMAGE=ghcr.io/psangrama/agent-requirementanalyzer:latest docker compose up -d --no-build
+  image: ${REQAGENT_IMAGE:-reqagent}
   volumes:
     # .env is mounted (not copied into the image): the CLI and web UI read it exactly as they do outside Docker,
     # including the web UI picking up CLAUDE_MODEL changes without a restart. The file must exist.
